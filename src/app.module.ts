@@ -1,65 +1,84 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { Customer } from './TypeOrm/entities/customer.entity';
+import { AuthController } from './controllers/auth/auth.controller';
 import { UsersController } from './controllers/users/users.controller';
-import { CustomerController } from './controllers/customers/customers.controller';
-import { CustomersService } from './services/customers/customers.service';
-import { Customers } from './TypeOrm/entities/customers.entity';
-import { CourierService } from './services/courier/courier.service';
-import { CourierController } from './controllers/courier/courier.controller';
-import { Courier } from './TypeOrm/entities/courier.entity';
-import { DeliveryService } from './services/delivery/delivery.service';
-import { DeliveryController } from './controllers/delivery/delivery.controller';
+import { User } from './TypeOrm/entities/user.entity';
+import { UsersModule } from './services/users/users.module';
+import { AuthModule } from './auth/auth.module';
+import { ConfigModule } from '@nestjs/config';
+import { Product } from './TypeOrm/entities/product.entity';
+import { Order } from './TypeOrm/entities/order.entity';
 import { Delivery } from './TypeOrm/entities/delivery.entity';
-import { Items } from './TypeOrm/entities/items.entity';
-import { ItemsController } from './controllers/items/items.controller';
-import { ItemsService } from './services/items/items.service';
-import { PaymentController } from './controllers/payment/payment.controller';
-import { PaymentService } from './services/payment/payment.service';
-import { Transaction } from './TypeOrm/entities/transaction.entity';
-import { ReportService } from './services/report/report.service';
-import { ReportController } from './controllers/report/report.controller';
+import { CustomersService } from './services/customers/customers.service';
+import { OrderService } from './services/order/order.service';
+import { DeliveryService } from './services/delivery/delivery.service';
+import { OrderController } from './controllers/order/order.controller';
+import { DeliveryController } from './controllers/delivery/delivery.controller';
+import { CustomersController } from './controllers/customers/customers.controller';
+
+import { ProductController } from './controllers/product/product.controller';
+import { ProductService } from './services/product/product.service';
+import { ChatModule } from './chat/chat.module';
+import { OrderProduct } from './TypeOrm/entities/orderproduct.entity';
+import { UsersService } from './services/users/users.service';
+import { Courier } from './TypeOrm/entities/courier.entity';
+import { AuthMiddleware } from './auth/AuthMiddleware';
+import { OtpService } from './services/otp/otp.service';
+import { OtpController } from './controllers/otp/otp.controller';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, // Memastikan konfigurasi tersedia secara global
+    }),
     TypeOrmModule.forRoot({
-      type: 'postgres',
+      type: 'mysql',
       host: 'localhost',
-      port: 5432,
-      username: 'postgres',
-      password: 'postgres',
-      database: 'postgres',
+      port: 3306,
+      username: 'root',
+      password: '',
+      database: 'appgalon',
       entities: ['dist/**/*.entity{.ts,.js}'],
       synchronize: true,
     }),
-
+    UsersModule,
+    AuthModule,
+    ChatModule,
     TypeOrmModule.forFeature([
-      Customers,
+      Customer,
+      Product,
+      Order,
       Courier,
       Delivery,
-      Items,
-      Transaction,
+      User,
+      OrderProduct,
     ]),
   ],
   controllers: [
     AppController,
     UsersController,
-    CustomerController,
-    CourierController,
+    AuthController,
+    OrderController,
     DeliveryController,
-    ItemsController,
-    PaymentController,
-    ReportController,
+    CustomersController,
+    ProductController,
+    OtpController,
   ],
   providers: [
     AppService,
-    CourierService,
+    UsersService,
     CustomersService,
+    OrderService,
     DeliveryService,
-    ItemsService,
-    PaymentService,
-    ReportService,
+    ProductService,
+    OtpService,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes('*'); // Apply to all routes or specific routes
+  }
+}

@@ -1,64 +1,54 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Expose } from 'class-transformer';
-import { IsEnum, IsInt, IsNotEmpty, IsNumber, Matches } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber } from 'class-validator';
 
-import { StatusPengiriman } from 'src/TypeOrm/entities/delivery.entity';
-
-export class GetbyKurir {
-  @IsInt()
-  @ApiProperty()
-  kurirId: number;
-}
-
-export class DeliveryDto {
-  @Expose()
-  id: number;
-
-  @IsEnum(StatusPengiriman)
-  @ApiProperty({
-    enum: StatusPengiriman,
-    description: 'The delivery status',
-    enumName: 'StatusPengiriman',
-    default: StatusPengiriman.PROSES,
-  })
-  status: StatusPengiriman;
-
-  @ApiProperty() // Assuming items is an ID, it should be of type number
-  @IsNumber()
-  @IsNotEmpty()
-  itemsId: number; // Representing the ID of the related Items entity
-
+export class CreateDeliveryDto {
+  @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  @IsNumber()
-  qty: number;
+  orderId: string;
 
-  @Expose()
+  @IsString()
   @IsNotEmpty()
   @ApiProperty()
-  kurirId: number;
+  courierId: string;
+}
 
-  @ApiProperty() // Assuming items is an ID, it should be of type number
+export class DeliveryDTO {
+  @IsString()
+  @IsNotEmpty()
+  @ApiProperty()
+  status: string;
+
   @IsNumber()
   @IsNotEmpty()
-  customersId: number; // Representing the ID of the related Items entity
+  @ApiProperty()
+  totalPrice: number;
 }
 
-export class DeliveryQueryDto {
-  @ApiProperty({ description: 'Courier ID' })
-  @IsNotEmpty()
-  readonly kurirId: number;
+export class SimpleProductOrderDTO {
+  @ApiProperty()
+  productName: string;
 
-  @ApiProperty({ description: 'Date in YYYY-MM-DD format' })
-  @IsNotEmpty()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'Tanggal must be in YYYY-MM-DD format',
-  })
-  readonly tanggal: string;
+  @ApiProperty()
+  quantity: number;
+
+  @ApiProperty()
+  photo: string;
 }
 
-export class DeliveryToday {
-  @ApiProperty({ description: 'Courier ID' })
-  @IsNotEmpty()
-  kurirId?: number;
+export class SimpleDeliveryDTO {
+  @ApiProperty()
+  orderId: string;
+
+  @ApiProperty()
+  totalPrice: number;
+
+  @ApiProperty()
+  orderDate: Date;
+
+  @ApiProperty()
+  status: string;
+
+  @ApiProperty({ type: [SimpleProductOrderDTO] })
+  products: SimpleProductOrderDTO[];
 }

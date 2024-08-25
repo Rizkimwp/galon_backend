@@ -1,127 +1,264 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import * as path from 'path';
+import {
+  CreateDeliveryDto,
+  SimpleDeliveryDTO,
+  SimpleProductOrderDTO,
+} from 'src/dto/deliveryDto';
+import { DeliveryStatus } from 'src/enum/status';
 import { Courier } from 'src/TypeOrm/entities/courier.entity';
-import { Customers } from 'src/TypeOrm/entities/customers.entity';
 import { Delivery } from 'src/TypeOrm/entities/delivery.entity';
-import { Items } from 'src/TypeOrm/entities/items.entity';
-
-import { DeliveryDto } from 'src/dto/DeliveryDto';
-
-import { Repository } from 'typeorm';
+import { Order } from 'src/TypeOrm/entities/order.entity';
+import { Between, Repository } from 'typeorm';
+import { v4 as uuidv4 } from 'uuid';
+import * as qrcode from 'qrcode';
+import { createCanvas, loadImage } from 'canvas';
+import * as fs from 'fs';
+import { Customer } from 'src/TypeOrm/entities/customer.entity';
 
 @Injectable()
 export class DeliveryService {
   constructor(
     @InjectRepository(Delivery)
     private deliveryRepository: Repository<Delivery>,
-    @InjectRepository(Items)
-    private itemsRepository: Repository<Items>,
+    @InjectRepository(Order)
+    private orderRepository: Repository<Order>,
     @InjectRepository(Courier)
     private courierRepository: Repository<Courier>,
+    @InjectRepository(Customer)
+    private customerRepository: Repository<Customer>,
   ) {}
 
-  async findAll() {
-    return await this.deliveryRepository.find({
-      relations: ['items', 'courier'],
-    });
-  }
+  async createDelivery(
+    createDeliveryDto: CreateDeliveryDto,
+  ): Promise<Delivery> {
+    try {
+      const { orderId, courierId } = createDeliveryDto;
 
-  async findByKurirAndToday(kurirId: number): Promise<Delivery[]> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Set waktu ke awal hari ini
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1); // Tambahkan 1 hari untuk mendapatkan awal hari besok
+      // Validate order
+      const order = await this.orderRepository.findOne({
+        where: { id: orderId },
+        relations: ['orderProducts', 'orderProducts.product', 'customer'], // Ensure related entities are loaded
+      });
+      if (!order) {
+        throw new NotFoundException(`Order with ID ${orderId} not found`);
+      }
 
-    let res = this.deliveryRepository
-      .createQueryBuilder('delivery')
-      .leftJoinAndSelect('delivery.courier', 'courier')
-      .leftJoinAndSelect('delivery.items', 'items')
-      .leftJoinAndSelect('delivery.customers', 'customers')
-      .andWhere('delivery.createAt >= :today', { today })
-      .andWhere('delivery.createAt < :tomorrow', { tomorrow });
+      // Validate courier
+      const courier = await this.courierRepository.findOne({
+        where: { id: courierId },
+      });
+      if (!courier) {
+        throw new NotFoundException(`Courier with ID ${courierId} not found`);
+      }
 
-    if (kurirId) {
-      res = res.andWhere('courier.id = :kurirId', { kurirId });
-    }
+      // Generate QR code image
+      const qrCodePath = await this.generateQRCodeImage(order);
 
-    return res.getMany();
-  }
-
-  async findByKurirAndDate(kurirId: number, tanggal: string) {
-    const parsedDate = new Date(tanggal);
-    return await this.deliveryRepository
-      .createQueryBuilder('delivery')
-      .where('delivery.kurirId = :kurirId', { kurirId })
-      .andWhere('DATE(delivery.createAt) = :tanggal', {
-        tanggal: parsedDate.toISOString().split('T')[0],
-      }) // Format tanggal as "YYYY-MM-DD"
-      .getMany();
-  }
-
-  async create(data: DeliveryDto[] | DeliveryDto) {
-    let dataArray: DeliveryDto[] = [];
-
-    if (Array.isArray(data)) {
-      dataArray = data;
-    } else {
-      dataArray = [data];
-    }
-
-    const deliveries = dataArray.map((dto) => {
+      // Create new delivery
       const delivery = new Delivery();
+      delivery.id = uuidv4(); // Generate a new UUID for the delivery ID
+      delivery.order = order;
+      delivery.courier = courier;
+      delivery.status = DeliveryStatus.PROSES;
+      delivery.barcode = qrCodePath; // Store QR code path
 
-      delivery.status = dto.status;
-      delivery.qty = dto.qty;
-      // Mengasumsikan relasi sudah terdefinisi di entity Delivery
-      // Assign relasi menggunakan hanya ID untuk efisiensi
-      // Tergantung pada ORM dan setup database Anda, Anda mungkin perlu memuat entity terlebih dahulu
-      if (dto.kurirId) {
-        delivery.courier = { id: dto.kurirId } as Courier; // Type casting untuk menghindari error tipe
-      }
+      // Save the delivery to the database
+      return await this.deliveryRepository.save(delivery);
+    } catch (error) {
+      // Log the error (optional)
+      console.error('Error creating delivery:', error.message);
 
-      if (dto.itemsId) {
-        // Jika items adalah array atau relasi banyak-ke-banyak, Anda perlu menyesuaikan pendekatan ini
-        delivery.items = { id: dto.itemsId } as Items;
-      }
+      // Re-throw the error to be handled by NestJS's global exception filter
+      throw new InternalServerErrorException('Failed to create delivery');
+    }
+  }
+  private async generateQRCodeImage(order: Order): Promise<string> {
+    // Aggregate product names and quantities
+    const productSummary = order.orderProducts.reduce(
+      (summary, orderProduct) => {
+        const productName = orderProduct.product.name;
+        const quantity = orderProduct.quantity;
 
-      if (dto.customersId) {
-        delivery.customers = { id: dto.customersId } as Customers;
-      }
+        if (summary[productName]) {
+          summary[productName] += quantity; // Update quantity if product already exists
+        } else {
+          summary[productName] = quantity; // Add new product to summary
+        }
 
-      return delivery;
-    });
+        return summary;
+      },
+      {} as Record<string, number>,
+    );
 
-    // Lanjutkan dengan proses penyimpanan atau operasi lainnya...
+    // Format product names and quantities for display
+    const productDetails = Object.entries(productSummary)
+      .map(([name, quantity]) => `${name} ${quantity}`)
+      .join(', ');
 
-    // Save all delivery entities
-    // TypeORM's save method can handle arrays, saving all instances in a single call
-    return await this.deliveryRepository.save(deliveries);
+    // QR code data (order ID)
+    const qrCodeData = order.id;
+    const fileName = `${uuidv4()}.png`; // Generate a unique file name
+    const uploadPath = path.join(
+      __dirname,
+      '..',
+      '..',
+      'public',
+      'uploads',
+      fileName,
+    );
+
+    try {
+      // Generate QR code as a buffer
+      const qrCodeBuffer = await qrcode.toBuffer(qrCodeData, {
+        errorCorrectionLevel: 'H',
+      });
+
+      // Create a canvas to draw QR code and text
+      const canvas = createCanvas(400, 600); // Adjust the size as needed
+      const ctx = canvas.getContext('2d');
+
+      // Draw QR code
+      const qrImage = await loadImage(qrCodeBuffer);
+      ctx.drawImage(qrImage, 50, 50, 300, 300); // Adjust the position and size
+
+      // Draw text below QR code
+      ctx.font = '20px Arial';
+      ctx.fillStyle = 'black';
+      ctx.textAlign = 'center';
+      const textYPosition = 400; // Y position for the text
+
+      ctx.fillText(`Customer: ${order.customer.name}`, 200, textYPosition);
+      ctx.fillText(
+        `Address: ${order.customer.address}`,
+        200,
+        textYPosition + 30,
+      );
+      ctx.fillText(`Products: ${productDetails}`, 200, textYPosition + 60);
+
+      // Ensure the upload directory exists
+      const uploadDir = path.dirname(uploadPath);
+      fs.mkdirSync(uploadDir, { recursive: true });
+
+      // Save the canvas to a file
+      const out = fs.createWriteStream(uploadPath);
+      const stream = canvas.createPNGStream();
+      stream.pipe(out);
+
+      return new Promise<string>((resolve, reject) => {
+        out.on('finish', () => resolve(fileName));
+        out.on('error', reject);
+      });
+    } catch (error) {
+      console.error('Error generating QR code image:', error.message);
+      throw new InternalServerErrorException(
+        'Failed to generate QR code image',
+      );
+    }
   }
 
-  async update(id: number, data: DeliveryDto): Promise<Delivery> {
-    const delivery = await this.deliveryRepository.findOne({
-      where: { id },
-      relations: ['courier', 'items', 'customers'],
+  async getDeliveryByCustomerId(
+    customerId: string,
+  ): Promise<SimpleDeliveryDTO[]> {
+    const customer = await this.customerRepository.findOne({
+      where: {
+        user: {
+          id: customerId,
+        },
+      },
     });
 
-    if (!delivery) {
-      throw new NotFoundException(`Delivery with ID ${id} not found`);
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
     }
 
-    if (data.status) {
-      delivery.status = data.status;
-    }
-    if (data.kurirId) {
-      delivery.courier.id = data.kurirId;
-    }
-    if (data.itemsId) {
-      delivery.items.id = data.itemsId;
-    }
-    if (data.customersId) {
-      delivery.customers.id = data.customersId;
+    const response = await this.deliveryRepository.find({
+      where: {
+        order: {
+          customerId: customer.id,
+        },
+      },
+      relations: [
+        'order',
+        'order.customer',
+        'order.orderProducts',
+        'order.orderProducts.product',
+      ],
+    });
+
+    return Promise.all(response.map(this.mapToSimpleDeliveryDTO));
+  }
+
+  async getDeliveryByCustomerIdToday(customerId: string): Promise<Delivery[]> {
+    // Find the customer based on the user ID
+    const customer = await this.customerRepository.findOne({
+      where: {
+        user: {
+          id: customerId,
+        },
+      },
+    });
+
+    // If the customer is not found, throw a NotFoundException
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
     }
 
-    await this.deliveryRepository.save(delivery);
-    return delivery;
+    // Get the start and end of today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0); // Set to 00:00:00
+
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999); // Set to 23:59:59.999
+
+    // Find the deliveries based on the found customer's ID and today's date
+    const deliveries = await this.deliveryRepository.find({
+      where: {
+        order: {
+          customerId: customer.id,
+        },
+        createdAt: Between(todayStart, todayEnd), // Filter by today's date
+      },
+      relations: [
+        'order',
+        'order.customer',
+        'order.orderProducts',
+        'order.orderProducts.product',
+      ],
+    });
+
+    return deliveries;
+  }
+
+  async mapToSimpleDeliveryDTO(delivery: Delivery): Promise<SimpleDeliveryDTO> {
+    const simpleDeliveryDTO = new SimpleDeliveryDTO();
+    simpleDeliveryDTO.orderId = delivery.order.id;
+    simpleDeliveryDTO.orderDate = delivery.order.createdAt;
+    simpleDeliveryDTO.status = delivery.status;
+
+    // Menghitung total harga dari semua produk dalam pesanan
+    simpleDeliveryDTO.totalPrice = delivery.order.orderProducts.reduce(
+      (total, orderProduct) =>
+        total + orderProduct.product.price * orderProduct.quantity,
+      0,
+    );
+
+    // Map produk ke SimpleProductOrderDTO
+    simpleDeliveryDTO.products = delivery.order.orderProducts.map(
+      (orderProduct) => {
+        const simpleProductOrderDTO = new SimpleProductOrderDTO();
+        simpleProductOrderDTO.productName = orderProduct.product.name;
+        simpleProductOrderDTO.quantity = orderProduct.quantity;
+        simpleProductOrderDTO.photo = orderProduct.product.photo;
+        return simpleProductOrderDTO;
+      },
+    );
+
+    return simpleDeliveryDTO;
   }
 }

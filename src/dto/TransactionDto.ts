@@ -1,19 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsNumber } from 'class-validator';
 
-export class TransactionDto {
+export class UpdateTransactionDto {
   @ApiProperty()
-  @IsNotEmpty()
-  @IsNumber()
-  customerId: number;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsNumber()
-  itemId: number;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsInt()
-  qty: number;
+  partialAmount: number;
 }

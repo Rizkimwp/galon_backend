@@ -1,55 +1,42 @@
-import { ApiProperty } from '@nestjs/swagger';
 import {
-  Column,
   Entity,
-  JoinColumn,
+  Column,
   ManyToOne,
-  PrimaryGeneratedColumn,
+  PrimaryColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
-import { Items } from './items.entity';
 import { Courier } from './courier.entity';
-import { Customers } from './customers.entity';
+import { Order } from './order.entity';
+import { DeliveryStatus } from 'src/enum/status';
 
-export enum StatusPengiriman {
-  DIKIRIM = 'dikirim',
-  PROSES = 'proses',
-  GAGAL = 'gagal',
-}
-
-@Entity()
+@Entity('deliveries')
 export class Delivery {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryColumn({ type: 'char', length: 36 })
+  id: string;
 
-  @Column({ default: () => 'CURRENT_TIMESTAMP' }) // Menetapkan nilai default ke waktu saat in
-  createAt: Date;
+  @ManyToOne(() => Courier, (courier) => courier.deliveries)
+  courier: Courier;
 
-  @Column()
-  @ApiProperty()
-  qty: number;
+  @ManyToOne(() => Order, (order) => order.deliveries)
+  order: Order;
+
+  @Column({ type: 'char', length: 36 })
+  courierId: string;
 
   @Column({
     type: 'enum',
-    enum: StatusPengiriman,
-    default: StatusPengiriman.PROSES,
+    enum: DeliveryStatus,
+    default: DeliveryStatus.PROSES, // Set default value if needed
   })
-  @ApiProperty()
-  status: StatusPengiriman;
+  status: DeliveryStatus;
 
-  @ManyToOne(() => Items, (item) => item.delivery, { eager: true })
-  @JoinColumn({ name: 'itemsId' })
-  @ApiProperty({ type: () => Items }) // Mengatur relasi dengan cascade
-  items: Items;
+  @Column()
+  barcode: string; // Barcode yang di-scan oleh kurir
 
-  @ManyToOne(() => Courier, (kurir) => kurir.delivery, { eager: true }) // Relasi Many-to-One ke entitas Courier
-  @JoinColumn({ name: 'kurirId' })
-  @ApiProperty({ type: () => Courier })
-  courier: Courier;
+  @CreateDateColumn({ type: 'timestamp' })
+  createdAt: Date;
 
-  @ManyToOne(() => Customers, (customers) => customers.delivery, {
-    eager: true,
-  }) // Relasi Many-to-One ke entitas Courier
-  @JoinColumn({ name: 'customersId' })
-  @ApiProperty({ type: () => Customers })
-  customers: Customers;
+  @UpdateDateColumn({ type: 'timestamp' })
+  updatedAt: Date;
 }

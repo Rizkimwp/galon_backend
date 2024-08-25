@@ -1,23 +1,29 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryColumn,
+} from 'typeorm';
+import { User } from './user.entity';
 import { Delivery } from './delivery.entity';
 
-@Entity({ name: 'courier' })
+@Entity('couriers')
 export class Courier {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryColumn({ type: 'char', length: 36 })
+  id: string; // Primary key to uniquely identify a Courier
 
-  @Column()
-  @ApiProperty()
-  nama: string;
+  @ManyToOne(() => User, (user) => user.couriers)
+  @JoinColumn({ name: 'userId' })
+  user: User;
 
-  @Column()
-  @ApiProperty()
-  nomor_telepon: string;
+  @Column({ type: 'varchar', length: 255 })
+  name: string; // Adding name column
 
-  @Column({ default: () => 'CURRENT_TIMESTAMP' })
-  createAt: Date;
+  @Column({ type: 'varchar', length: 20 })
+  phoneNumber: string; // Adding phone number column
 
   @OneToMany(() => Delivery, (delivery) => delivery.courier)
-  delivery: Delivery;
+  deliveries: Delivery[];
 }

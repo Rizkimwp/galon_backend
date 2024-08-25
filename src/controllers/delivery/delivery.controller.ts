@@ -1,91 +1,112 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
+  HttpCode,
   HttpStatus,
-  NotFoundException,
-  Param,
-  Put,
-  Query,
-  ValidationPipe,
+  InternalServerErrorException,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBadRequestResponse,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import { JwtAuthGuard } from 'src/auth/auth.guard';
+import { Roles } from 'src/decorator/roles.decorator';
+import {
+  CreateDeliveryDto,
+  DeliveryDTO,
+  SimpleDeliveryDTO,
+} from 'src/dto/deliveryDto';
+import { Role } from 'src/enum/role';
 import { DeliveryService } from 'src/services/delivery/delivery.service';
+import { Delivery } from 'src/TypeOrm/entities/delivery.entity';
 
-import { Post } from '@nestjs/common';
-import { DeliveryDto, DeliveryQueryDto } from 'src/dto/DeliveryDto';
-import { plainToInstance } from 'class-transformer';
-
-@ApiTags('Delivery')
-@Controller('api/delivery')
+@ApiTags('Deliveries')
+@ApiBearerAuth('access-token')
+@Controller('deliveries')
 export class DeliveryController {
-  constructor(private deliveryService: DeliveryService) {}
+  constructor(private readonly deliveryService: DeliveryService) {}
 
-  @Get()
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Data Berhasil ditemukan',
-  })
-  async getAll() {
-    return await this.deliveryService.findAll();
-  }
-
-  @Get(':kurirId/:tanggal')
-  @ApiResponse({
-    /* Your API response definition here */
-  })
-  async getDeliveriesByCourierIdAndDate(@Param() query: DeliveryQueryDto) {
-    const { kurirId, tanggal } = query;
-    return this.deliveryService.findByKurirAndDate(kurirId, tanggal);
-  }
-
-  @Get('/kurirId')
-  @ApiQuery({ name: 'kurirId', required: false })
-  async getDeliveriesForToday(@Query('kurirId') kurirId: number) {
-    try {
-      const deliveries =
-        await this.deliveryService.findByKurirAndToday(kurirId);
-      return plainToInstance(DeliveryDto, deliveries);
-    } catch (error) {
-      return {
-        success: false,
-        message: 'Failed to fetch deliveries for today.',
-      };
-    }
-  }
-
+  // @UseGuards(JwtAuthGuard)
+  // @Roles(Role.COURIER, Role.ADMIN)
   @Post()
-  @ApiBody({ type: DeliveryDto, required: false })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Berhasil Dibuat' })
-  async create(@Body(new ValidationPipe()) data: DeliveryDto) {
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new delivery' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'The delivery has been successfully created.',
+    type: Delivery,
+  })
+  @ApiBadRequestResponse({
+    description: 'Bad request, possibly invalid input.',
+  })
+  @ApiBody({
+    description: 'Create Delivery DTO',
+    type: CreateDeliveryDto,
+  })
+  async createDelivery(
+    @Body() createDeliveryDto: CreateDeliveryDto,
+  ): Promise<Delivery> {
     try {
-      const res = await this.deliveryService.create(data);
-      // Jika berhasil, kirim status sukses ke frontend
-      return { status: 'success', data: res };
+      // Call the service to handle delivery creation
+      return await this.deliveryService.createDelivery(createDeliveryDto);
     } catch (error) {
-      // Jika terjadi kesalahan, tangkap dan kirim status error ke frontend
-      throw new BadRequestException('Permintaan tidak valid');
+      console.error('Error creating delivery:', error.message);
+      throw new InternalServerErrorException('Failed to create delivery');
     }
   }
-  @Put(':id')
-  @ApiBody({ type: DeliveryDto })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Berhasil di Update' })
-  async update(
-    @Param('id') id: number,
-    @Body(new ValidationPipe())
-    data: DeliveryDto,
-  ): Promise<{ message: string; status: boolean; data: DeliveryDto }> {
-    try {
-      const res = await this.deliveryService.update(id, data);
-      if (res) {
-        return { status: true, message: 'Update Data Delivery Berhasil', data };
-      } else {
-        throw new Error('Data Gagal Update');
+  @UseGuards(JwtAuthGuard)
+  @Roles(Role.CUSTOMER)
+  @Get()
+  @ApiOperation({ summary: 'Get deliveries by Customer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Delivery details retrieved successfully.',
+    type: [SimpleDeliveryDTO], // Menggunakan DTO baru
+  })
+  @ApiResponse({ status: 404, description: 'Delivery not found.' })
+  async getDeliveriesByCustomerId(@Req() req): Promise<SimpleDeliveryDTO[]> {
+    const customerId = req.user.id;
+    const deliveries =
+      await this.deliveryService.getDeliveryByCustomerId(customerId);
+    return deliveries;
+  }
+  @UseGuards(JwtAuthGuard)
+  @Roles(Role.CUSTOMER)
+  @Get('/today')
+  @ApiOperation({ summary: 'Get deliveries by Customer ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Delivery details retrieved successfully.',
+  })
+  @ApiResponse({ status: 404, description: 'Delivery not found.' })
+  async getDeliveryToday(@Req() req): Promise<DeliveryDTO[]> {
+    const customerId = req.user.id;
+    console.log('userTest', req.user.id);
+    const deliveries =
+      await this.deliveryService.getDeliveryByCustomerIdToday(customerId);
+
+    return deliveries.map((delivery) => {
+      let totalPrice = 0;
+
+      if (delivery.order && delivery.order.orderProducts) {
+        delivery.order.orderProducts.forEach((orderProduct) => {
+          totalPrice += orderProduct.quantity * orderProduct.product.price;
+        });
       }
-    } catch (error) {
-      console.log(error);
-      throw new NotFoundException('Data tidak ditemukan');
-    }
+
+      return {
+        id: delivery.id,
+        status: delivery.status,
+        totalPrice: totalPrice,
+      };
+    });
   }
 }
