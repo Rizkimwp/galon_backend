@@ -1,4 +1,5 @@
-import { Entity, Column, PrimaryColumn } from 'typeorm';
+import { Entity, Column, PrimaryColumn, OneToMany } from 'typeorm';
+import { Redeem } from './redeem.entity';
 
 @Entity('rewards')
 export class Reward {
@@ -13,4 +14,7 @@ export class Reward {
 
   @Column({ nullable: true })
   imageUrl: string; // URL gambar hadiah
+
+  @OneToMany(() => Redeem, (redeem) => redeem.reward)
+  redeems: Redeem[]; // Customer dapat menukarkan banyak reward
 }

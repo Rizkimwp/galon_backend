@@ -6,11 +6,14 @@ import {
   PrimaryColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToOne,
 } from 'typeorm';
 import { Customer } from './customer.entity';
 
 import { OrderProduct } from './orderproduct.entity';
 import { Delivery } from './delivery.entity';
+import { OrderStatus } from 'src/enum/status';
+import { Invoice } from './invoice.entity';
 
 @Entity('orders')
 export class Order {
@@ -23,11 +26,14 @@ export class Order {
   @ManyToOne(() => Customer, (customer) => customer.orders)
   customer: Customer;
 
-  @Column({ default: 'Pending' })
-  status: string; // Misal: 'Pending', 'Delivered', 'Failed'
+  @Column({ type: 'enum', enum: OrderStatus, default: OrderStatus.PENDING })
+  status: OrderStatus;
 
   @Column({ default: true })
   requiresDelivery: boolean;
+
+  @OneToOne(() => Invoice, (invoice) => invoice.order)
+  invoice: Invoice; // Relasi ke faktur
 
   @OneToMany(() => OrderProduct, (orderProduct) => orderProduct.order)
   orderProducts: OrderProduct[];

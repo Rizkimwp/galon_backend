@@ -4,7 +4,7 @@ import { Controller, Post, Body, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AuthService } from 'src/services/auth/auth.service';
 
-import { CreateUserDto, LoginUserDto } from 'src/dto/UserDto';
+import { CreateUserDto, LoginResponse, LoginUserDto } from 'src/dto/UserDto';
 import { UsersService } from 'src/services/users/users.service';
 
 @ApiTags('auth')
@@ -29,14 +29,17 @@ export class AuthController {
   @Post('login')
   @ApiOperation({ summary: 'Login a user' })
   @ApiBody({ description: 'User login credentials', type: LoginUserDto })
-  @ApiResponse({ status: 200, description: 'Successfully logged in.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully logged in.',
+    type: LoginResponse,
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   async login(@Body() loginDto: LoginUserDto) {
     const { username, password } = loginDto;
-    const user = await this.authService.validate(username);
+    const user = await this.authService.validate(username, password);
 
     if (!user) {
-      console.log(username, password);
       throw new NotFoundException('username atau password salah');
     }
 

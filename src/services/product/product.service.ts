@@ -4,49 +4,28 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CreateProductDto, UpdateProductDto } from 'src/dto/productDto';
+import {
+  CreateProductDto,
+  SalesReportDto,
+  UpdateProductDto,
+} from 'src/dto/productDto';
+import { OrderProduct } from 'src/TypeOrm/entities/orderproduct.entity';
 import { Product } from 'src/TypeOrm/entities/product.entity';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
-import * as path from 'path';
-import * as fs from 'fs';
 
 @Injectable()
 export class ProductService {
   constructor(
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    @InjectRepository(OrderProduct)
+    private readonly orderProductRepository: Repository<OrderProduct>,
   ) {}
 
-  async createProduct(
-    createProductDto: CreateProductDto,
-    file: Express.Multer.File,
-  ): Promise<Product> {
+  async createProduct(createProductDto: CreateProductDto): Promise<Product> {
     try {
       const productId = uuidv4();
-
-      if (file && file.buffer) {
-        const fileName = `${productId}-${file.originalname}`;
-        const uploadPath = path.join(
-          __dirname,
-          '..',
-          '..',
-          'public',
-          'uploads',
-          fileName,
-        ); // Adjust path as needed
-
-        // Ensure directory exists
-        fs.mkdirSync(path.dirname(uploadPath), { recursive: true });
-
-        // Save file to filesystem
-        fs.writeFileSync(uploadPath, file.buffer);
-
-        createProductDto.photo = fileName;
-      } else {
-        throw new InternalServerErrorException('File buffer is undefined');
-      }
-
       const product = this.productRepository.create({
         ...createProductDto,
         id: productId,
@@ -85,5 +64,34 @@ export class ProductService {
     if (result.affected === 0) {
       throw new NotFoundException(`Product with ID ${id} not found`);
     }
+  }
+
+  async getMonthlySalesReport(): Promise<SalesReportDto[]> {
+    // Mengambil data berdasarkan bulan dengan QueryBuilder
+    const orderProducts = await this.orderProductRepository
+      .createQueryBuilder('orderProduct')
+      .leftJoinAndSelect('orderProduct.product', 'product') // Bergabung dengan tabel product
+      .select('orderProduct.productId', 'productId')
+      .addSelect('product.name', 'productName')
+      .addSelect('SUM(orderProduct.quantity)', 'totalQuantity')
+      .addSelect('MONTH(orderProduct.createdAt)', 'month')
+      .groupBy('orderProduct.productId')
+      .addGroupBy('MONTH(orderProduct.createdAt)')
+      .addGroupBy('product.name')
+      .getRawMany();
+
+    const salesReport: SalesReportDto[] = [];
+
+    for (const orderProduct of orderProducts) {
+      salesReport.push({
+        productId: orderProduct.productId,
+        productName: orderProduct.productName,
+        totalQuantity: parseInt(orderProduct.totalQuantity, 10), // Total kuantitas per bulan
+        totalSales: orderProduct.totalQuantity * orderProduct.productPrice, // Menghitung total penjualan per bulan
+        month: orderProduct.month, // Bulan dari penjualan
+      });
+    }
+
+    return salesReport;
   }
 }

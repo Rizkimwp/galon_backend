@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Delivery } from './delivery.entity';
+import { CourierEarnings } from './courier_earnings.entity';
 
 @Entity('couriers')
 export class Courier {
@@ -26,4 +27,7 @@ export class Courier {
 
   @OneToMany(() => Delivery, (delivery) => delivery.courier)
   deliveries: Delivery[];
+
+  @OneToMany(() => CourierEarnings, (earnings) => earnings.courier)
+  earnings: CourierEarnings[];
 }

@@ -11,10 +11,10 @@ import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { Product } from './TypeOrm/entities/product.entity';
 import { Order } from './TypeOrm/entities/order.entity';
-import { Delivery } from './TypeOrm/entities/delivery.entity';
+
 import { CustomersService } from './services/customers/customers.service';
 import { OrderService } from './services/order/order.service';
-import { DeliveryService } from './services/delivery/delivery.service';
+
 import { OrderController } from './controllers/order/order.controller';
 import { DeliveryController } from './controllers/delivery/delivery.controller';
 import { CustomersController } from './controllers/customers/customers.controller';
@@ -28,6 +28,29 @@ import { Courier } from './TypeOrm/entities/courier.entity';
 import { AuthMiddleware } from './auth/AuthMiddleware';
 import { OtpService } from './services/otp/otp.service';
 import { OtpController } from './controllers/otp/otp.controller';
+import { Delivery } from './TypeOrm/entities/delivery.entity';
+import { DeliveryService } from './services/delivery/delivery.service';
+import { DeliveryGateway } from './services/delivery/delivery.gateway';
+import { RewardController } from './controllers/reward/reward.controller';
+import { RewardService } from './services/reward/reward.service';
+import { Reward } from './TypeOrm/entities/reward.entity';
+
+import { FileService } from './services/file/file.service';
+import { CourierService } from './services/courier/courier.service';
+import { CourierController } from './controllers/courier/courier.controller';
+import { InvoiceController } from './controllers/invoice/invoice.controller';
+import { InvoiceService } from './services/invoice/invoice.service';
+import { Invoice } from './TypeOrm/entities/invoice.entity';
+import { Payment } from './TypeOrm/entities/payment.entity';
+import { PaymentService } from './services/payment/payment.service';
+import { PaymentController } from './controllers/payment/payment.controller';
+import { CourierEarnings } from './TypeOrm/entities/courier_earnings.entity';
+import { EarningService } from './services/earning/earning.service';
+import { EarningController } from './controllers/earning/earning.controller';
+import { Keuangan } from './TypeOrm/entities/keuangan.entity';
+import { KeuanganService } from './services/keuangan/keuangan.service';
+import { KeuanganController } from './controllers/keuangan/keuangan.controller';
+import { Redeem } from './TypeOrm/entities/redeem.entity';
 
 @Module({
   imports: [
@@ -44,17 +67,24 @@ import { OtpController } from './controllers/otp/otp.controller';
       entities: ['dist/**/*.entity{.ts,.js}'],
       synchronize: true,
     }),
+
     UsersModule,
     AuthModule,
     ChatModule,
     TypeOrmModule.forFeature([
       Customer,
+      Delivery,
       Product,
       Order,
       Courier,
-      Delivery,
       User,
       OrderProduct,
+      Reward,
+      Invoice,
+      Payment,
+      CourierEarnings,
+      Keuangan,
+      Redeem,
     ]),
   ],
   controllers: [
@@ -66,15 +96,29 @@ import { OtpController } from './controllers/otp/otp.controller';
     CustomersController,
     ProductController,
     OtpController,
+    RewardController,
+    CourierController,
+    InvoiceController,
+    PaymentController,
+    EarningController,
+    KeuanganController,
   ],
   providers: [
+    FileService,
     AppService,
     UsersService,
     CustomersService,
     OrderService,
-    DeliveryService,
     ProductService,
     OtpService,
+    DeliveryService,
+    DeliveryGateway,
+    RewardService,
+    CourierService,
+    InvoiceService,
+    PaymentService,
+    EarningService,
+    KeuanganService,
   ],
 })
 export class AppModule implements NestModule {

@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { User } from 'src/TypeOrm/entities/user.entity';
 import { JwtPayload } from 'src/auth/jwt-payload';
 import { Role } from 'src/enum/role';
-
+import * as bcrypt from 'bcrypt';
 import { UsersService } from 'src/services/users/users.service';
 
 @Injectable()
@@ -14,16 +14,16 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async validate(username: string): Promise<any> {
+  async validate(username: string, password: string): Promise<any> {
     const user = await this.usersService.findOne(username);
 
-    if (user) {
+    if (user && (await bcrypt.compare(password, user.password))) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password, ...result } = user;
-      return result;
+      return result; // Mengembalikan informasi pengguna tanpa password
     }
 
-    return null; // Return null jika pengguna tidak ditemukan atau password tidak cocok
+    return null; // Mengembalikan null jika pengguna tidak ditemukan atau password tidak cocok
   }
 
   async login(user: User) {

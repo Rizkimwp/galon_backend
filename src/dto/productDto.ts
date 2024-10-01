@@ -19,7 +19,6 @@ export class CreateProductDto {
   @ApiProperty({
     description: 'Photo of the product',
     type: 'string',
-    format: 'binary',
     required: false,
   })
   photo: string;
@@ -28,6 +27,11 @@ export class CreateProductDto {
   @Min(0)
   @ApiProperty({ description: 'Price of the product', example: 5.99 })
   price: number;
+
+  @IsNumber()
+  @Min(0)
+  @ApiProperty({ description: 'Price of the product', example: 5.99 })
+  originalPrice: number;
 
   @IsNumber()
   @Min(0)
@@ -61,6 +65,11 @@ export class UpdateProductDto {
     required: false,
   })
   price?: number;
+
+  @IsNumber()
+  @Min(0)
+  @ApiProperty({ description: 'Price of the product', example: 5.99 })
+  originalPrice: number;
 
   @IsNumber()
   @Min(0)
@@ -105,6 +114,14 @@ export class GetProduct {
   id: string;
 
   @ApiProperty({
+    description: 'The unique identifier of the product',
+    example: '1',
+  })
+  @Expose()
+  @IsString()
+  photo: string;
+
+  @ApiProperty({
     description: 'Name of the product',
     example: 'Water Gallon',
   })
@@ -121,6 +138,15 @@ export class GetProduct {
   @IsDecimal()
   @IsOptional()
   price?: number;
+
+  @ApiProperty({
+    description: 'Price of the product',
+    example: 5.99,
+  })
+  @Expose()
+  @IsDecimal()
+  @IsOptional()
+  originalPrice?: number;
 
   @ApiProperty({
     description: 'Stock quantity of the product',
@@ -147,4 +173,31 @@ export class GetProduct {
   @IsBoolean()
   @IsOptional()
   isBestSeller?: boolean;
+}
+
+export class PhotoProduct {
+  @ApiProperty({ type: 'string', format: 'binary' })
+  photo: any;
+}
+
+export class UrlPhoto {
+  @ApiProperty()
+  url: string;
+}
+
+export class SalesReportDto {
+  @ApiProperty({ description: 'ID dari produk' })
+  productId: string;
+
+  @ApiProperty({ description: 'Nama produk' })
+  productName: string;
+
+  @ApiProperty({ description: 'Total penjualan (harga x kuantitas)' })
+  totalSales: number;
+
+  @ApiProperty({ description: 'Total kuantitas produk yang terjual' })
+  totalQuantity: number;
+
+  @ApiProperty({ description: 'Total kuantitas produk yang terjual' })
+  month: number;
 }

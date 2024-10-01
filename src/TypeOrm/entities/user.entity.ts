@@ -17,10 +17,10 @@ export class User {
   @PrimaryColumn({ type: 'char', length: 36 })
   id: string;
 
-  @Column()
+  @Column({ nullable: true })
   username: string;
 
-  @Column()
+  @Column({ nullable: true })
   name: string;
 
   @Column()
